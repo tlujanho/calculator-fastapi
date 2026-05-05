@@ -89,3 +89,13 @@ def mcd(a: int, b: int):
     resultado = math.gcd(a, b)
     logger.info(f"/mcd a={a}, b={b}, resultado={resultado}")
     return {"operacion": "mcd", "resultado": resultado}
+    
+@app.get("/mcm")
+def mcm(a: int, b: int):
+    if a == 0 or b == 0:
+        return {"error": "El MCM no está definido para cero"}
+    
+    resultado = abs(a * b) // math.gcd(a, b)
+    logger.info(f"/mcm a={a}, b={b}, resultado={resultado}")
+    
+    return {"operacion": "mcm", "resultado": resultado}
