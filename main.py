@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 import logging
+import math
 
 app = FastAPI()
 
@@ -74,3 +75,11 @@ def factorial(n: int):
 
     logger.info(f"/factorial n={n}, resultado={resultado}")
     return {"operacion": "factorial", "resultado": resultado}
+    
+@app.get("/raiz")
+def raiz(a: float):
+    if a < 0:
+        return {"error": "No se puede calcular raíz de número negativo"}
+    resultado = math.sqrt(a)
+    logger.info(f"/raiz a={a}, resultado={resultado}")
+    return {"operacion": "raiz", "resultado": resultado}
