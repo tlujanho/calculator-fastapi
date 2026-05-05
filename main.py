@@ -83,3 +83,9 @@ def raiz(a: float):
     resultado = math.sqrt(a)
     logger.info(f"/raiz a={a}, resultado={resultado}")
     return {"operacion": "raiz", "resultado": resultado}
+    
+@app.get("/mcd")
+def mcd(a: int, b: int):
+    resultado = math.gcd(a, b)
+    logger.info(f"/mcd a={a}, b={b}, resultado={resultado}")
+    return {"operacion": "mcd", "resultado": resultado}
