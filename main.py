@@ -99,3 +99,10 @@ def mcm(a: int, b: int):
     logger.info(f"/mcm a={a}, b={b}, resultado={resultado}")
     
     return {"operacion": "mcm", "resultado": resultado}
+    
+@app.get("/promedio")
+def promedio(a: float, b: float):
+    resultado = (a + b) / 2
+    logger.info(f"/promedio a={a}, b={b}, resultado={resultado}")
+    
+    return {"operacion": "promedio", "resultado": resultado}
