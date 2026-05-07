@@ -8,7 +8,7 @@ app = FastAPI()
 # 🔹 CORS (agregado)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # para pruebas
+    allow_origins=["https://nice-river-0b0b7c71e.7.azurestaticapps.net"],  # para pruebas
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
