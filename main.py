@@ -1,7 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from openai import AzureOpenAI
 import logging
 import math
+import os
 
 app = FastAPI()
 
@@ -22,6 +25,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 🔹 Cliente Foundry (se inicializa una vez)
+client = AzureOpenAI(
+    api_key=os.getenv("FOUNDRY_API_KEY"),
+    azure_endpoint=os.getenv("FOUNDRY_ENDPOINT"),
+    api_version="2024-02-15-preview"
+)
+
+# 🔹 Modelo request
+class ChatRequest(BaseModel):
+    mensaje: str
+
+
+# =========================
+# ENDPOINTS
+# =========================
 
 @app.get("/")
 def inicio():
@@ -117,3 +135,28 @@ def promedio(a: float, b: float):
     logger.info(f"/promedio a={a}, b={b}, resultado={resultado}")
     
     return {"operacion": "promedio", "resultado": resultado}
+
+# 🔥 NUEVO: CHATBOT
+@app.post("/chat")
+def chat(request: ChatRequest):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-5.4-mini",  # tu modelo desplegado
+            messages=[
+                {"role": "system", "content": "Eres un asistente que ayuda con cálculos y preguntas simples."},
+                {"role": "user", "content": request.mensaje}
+            ]
+        )
+
+        respuesta = response.choices[0].message.content
+
+        logger.info(f"/chat mensaje={request.mensaje}")
+
+        return {
+            "operacion": "chat",
+            "respuesta": respuesta
+        }
+
+    except Exception as e:
+        logger.error(f"Error en /chat: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al comunicarse con el modelo de IA")
