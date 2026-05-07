@@ -1,8 +1,19 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import logging
 import math
 
 app = FastAPI()
+
+# 🔹 CORS (agregado)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # para pruebas
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Configuración de logging
 logging.basicConfig(
