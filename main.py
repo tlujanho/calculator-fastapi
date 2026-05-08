@@ -5,6 +5,8 @@ from openai import AzureOpenAI
 import logging
 import math
 import os
+from datetime import datetime, timedelta
+from azure.storage.blob import generate_blob_sas, BlobSasPermissions
 
 app = FastAPI()
 
@@ -160,3 +162,35 @@ def chat(request: ChatRequest):
     except Exception as e:
         logger.error(f"Error en /chat: {str(e)}")
         raise HTTPException(status_code=500, detail="Error al comunicarse con el modelo de IA")
+
+@app.get("/documentos/{nombre_archivo}")
+def obtener_documento(nombre_archivo: str):
+    account_name = os.getenv("STORAGE_ACCOUNT_NAME")
+    container_name = os.getenv("STORAGE_CONTAINER_NAME")
+    account_key = os.getenv("STORAGE_ACCOUNT_KEY")
+
+    if not account_name or not container_name or not account_key:
+        raise HTTPException(status_code=500, detail="Configuración de Storage incompleta")
+
+    try:
+        sas_token = generate_blob_sas(
+            account_name=account_name,
+            container_name=container_name,
+            blob_name=nombre_archivo,
+            account_key=account_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(minutes=15)
+        )
+
+        url = f"https://{account_name}.blob.core.windows.net/{container_name}/{nombre_archivo}?{sas_token}"
+
+        logger.info(f"/documentos/{nombre_archivo}")
+
+        return {
+            "documento": nombre_archivo,
+            "url": url
+        }
+
+    except Exception as e:
+        logger.error(f"Error generando SAS para {nombre_archivo}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error generando enlace de descarga")
