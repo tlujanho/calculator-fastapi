@@ -175,7 +175,10 @@ def buscar_documentos(q: str):
 def leer_catalogo_documentos():
     account_name = os.getenv("STORAGE_ACCOUNT_NAME")
     account_key = os.getenv("STORAGE_ACCOUNT_KEY")
-    container_name = os.getenv("STORAGE_CONTAINER_NAME")
+    container_name = os.getenv("STORAGE_CONTAINER_CONFIG")
+
+    if not account_name or not account_key or not container_name:
+        raise HTTPException(status_code=500, detail="Configuración del catálogo incompleta")
 
     blob_service_client = BlobServiceClient(
         account_url=f"https://{account_name}.blob.core.windows.net",
