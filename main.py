@@ -157,13 +157,18 @@ def promedio(a: float, b: float):
 @app.get("/buscar")
 def buscar_documentos(q: str):
     try:
-        results = search_client.search(search_text=q, top=3)
+        results = search_client.search(search_text=q, top=5)
 
         docs = []
         for r in results:
+            titulo = r.get("title")
+
+            if not titulo or not titulo.endswith(".txt"):
+                continue
+
             docs.append({
-                "titulo": r.get("title"),
-                "contenido": r.get("content")[:300]
+                "titulo": titulo,
+                "contenido": r.get("content", "")[:300]
             })
 
         return {"query": q, "resultados": docs}
