@@ -36,6 +36,13 @@ client = AzureOpenAI(
     api_version="2024-02-15-preview"
 )
 
+# 🔹 Cliente AI Search
+search_client = SearchClient(
+    endpoint=os.getenv("AZURE_SEARCH_ENDPOINT"),
+    index_name=os.getenv("AZURE_SEARCH_INDEX"),
+    credential=AzureKeyCredential(os.getenv("AZURE_SEARCH_KEY"))
+)
+
 # 🔹 Modelo request
 class ChatRequest(BaseModel):
     mensaje: str
@@ -140,31 +147,73 @@ def promedio(a: float, b: float):
     
     return {"operacion": "promedio", "resultado": resultado}
 
-# 🔥 NUEVO: CHATBOT
+# =========================
+# 🔍 AI SEARCH
+# =========================
+
+@app.get("/buscar")
+def buscar_documentos(q: str):
+    try:
+        results = search_client.search(search_text=q, top=3)
+
+        docs = []
+        for r in results:
+            docs.append({
+                "titulo": r.get("title"),
+                "contenido": r.get("content")[:300]
+            })
+
+        return {"query": q, "resultados": docs}
+
+    except Exception as e:
+        logger.error(f"Error búsqueda: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error en AI Search")
+   
+# =========================
+# 🤖 CHAT + RAG
+# =========================
+
 @app.post("/chat")
 def chat(request: ChatRequest):
     try:
+        # 🔥 1. Buscar contexto en AI Search
+        results = search_client.search(
+            search_text=request.mensaje,
+            top=2
+        )
+
+        contexto = ""
+        for r in results:
+            contexto += r.get("content", "")[:500] + "\n\n"
+
+        # 🔥 2. Enviar a IA con contexto
         response = client.chat.completions.create(
-            model="gpt-5.4-mini",  # tu modelo desplegado
+            model="gpt-5.4-mini",
             messages=[
-                {"role": "system", "content": "Eres un asistente que ayuda con cálculos y preguntas simples."},
-                {"role": "user", "content": request.mensaje}
+                {
+                    "role": "system",
+                    "content": (
+        "Eres un asistente empresarial. Responde únicamente usando el contexto proporcionado. "
+        "No agregues información externa. Si la respuesta no está en el contexto, indica: "
+        "'No encontré esa información en los documentos disponibles'. "
+        "Mantén la respuesta clara, breve y orientada a empresas."
+        )
+                },
+                {
+                    "role": "user",
+                    "content": f"Contexto:\n{contexto}\n\nPregunta: {request.mensaje}"
+                }
             ]
         )
 
-        respuesta = response.choices[0].message.content
-
-        logger.info(f"/chat mensaje={request.mensaje}")
-
         return {
-            "operacion": "chat",
-            "respuesta": respuesta
+            "respuesta": response.choices[0].message.content
         }
 
     except Exception as e:
-        logger.error(f"Error en /chat: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error al comunicarse con el modelo de IA")
-
+        logger.error(f"Error en chat: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error en chatbot")
+    
 @app.get("/documentos/{nombre_archivo}")
 def obtener_documento(nombre_archivo: str):
     account_name = os.getenv("STORAGE_ACCOUNT_NAME")
@@ -196,3 +245,4 @@ def obtener_documento(nombre_archivo: str):
     except Exception as e:
         logger.error(f"Error generando SAS para {nombre_archivo}: {str(e)}")
         raise HTTPException(status_code=500, detail="Error generando enlace de descarga")
+    
