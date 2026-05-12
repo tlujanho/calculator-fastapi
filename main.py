@@ -247,7 +247,8 @@ def obtener_documento(nombre_archivo: str):
             blob_name=nombre_archivo,
             account_key=account_key,
             permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + timedelta(minutes=15)
+            expiry=datetime.utcnow() + timedelta(minutes=15),
+            content_disposition=f'attachment; filename="{nombre_archivo}"'  # 🔥 clave
         )
 
         url = f"https://{account_name}.blob.core.windows.net/{container_name}/{nombre_archivo}?{sas_token}"
