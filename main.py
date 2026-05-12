@@ -7,6 +7,8 @@ import math
 import os
 from datetime import datetime, timedelta
 from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents import SearchClient
 
 app = FastAPI()
 
