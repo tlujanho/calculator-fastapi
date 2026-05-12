@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from azure.storage.blob import generate_blob_sas, BlobSasPermissions
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
+import re
 
 app = FastAPI()
 
@@ -176,6 +177,22 @@ def buscar_documentos(q: str):
 @app.post("/chat")
 def chat(request: ChatRequest):
     try:
+        mensaje_lower = request.mensaje.lower()
+        match = re.search(r'doc(\d+)', mensaje_lower)
+
+        if match:
+            numero = match.group(1)
+            archivo = f"doc{numero}.txt"
+
+            descarga = obtener_documento(archivo)
+
+            return {
+                "operacion": "descarga_documento",
+                "respuesta": f"Aquí tienes el documento {archivo}.",
+                "documento": archivo,
+                "url": descarga["url"]
+            }
+
         # 🔥 1. Buscar contexto en AI Search
         results = search_client.search(
             search_text=request.mensaje,
