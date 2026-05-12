@@ -10,6 +10,8 @@ from azure.storage.blob import generate_blob_sas, BlobSasPermissions
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 import re
+import json
+from azure.storage.blob import BlobServiceClient
 
 app = FastAPI()
 
@@ -169,6 +171,24 @@ def buscar_documentos(q: str):
     except Exception as e:
         logger.error(f"Error búsqueda: {str(e)}")
         raise HTTPException(status_code=500, detail="Error en AI Search")
+
+def leer_catalogo_documentos():
+    account_name = os.getenv("STORAGE_ACCOUNT_NAME")
+    account_key = os.getenv("STORAGE_ACCOUNT_KEY")
+    container_name = os.getenv("STORAGE_CONTAINER_NAME")
+
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{account_name}.blob.core.windows.net",
+        credential=account_key
+    )
+
+    blob_client = blob_service_client.get_blob_client(
+        container=container_name,
+        blob="catalogo_documentos.json"
+    )
+
+    contenido = blob_client.download_blob().readall()
+    return json.loads(contenido)
    
 # =========================
 # 🤖 CHAT + RAG
@@ -177,44 +197,49 @@ def buscar_documentos(q: str):
 @app.post("/chat")
 def chat(request: ChatRequest):
     try:
-        mensaje_lower = request.mensaje.lower()
-        match = re.search(r'doc(\d+)', mensaje_lower)
-
-        if match:
-            numero = match.group(1)
-            archivo = f"doc{numero}.txt"
-
-            descarga = obtener_documento(archivo)
-
-            return {
-                "operacion": "descarga_documento",
-                "respuesta": f"Aquí tienes el documento {archivo}.",
-                "documento": archivo,
-                "url": descarga["url"]
-            }
-
-        # 🔥 1. Buscar contexto en AI Search
+        # 1. Buscar contexto en AI Search
         results = search_client.search(
             search_text=request.mensaje,
             top=2
         )
 
+        fuente = None
         contexto = ""
+
         for r in results:
+            if fuente is None:
+                fuente = r.get("title")
+
             contexto += r.get("content", "")[:500] + "\n\n"
 
-        # 🔥 2. Enviar a IA con contexto
+        # 2. Leer catálogo y obtener PDF asociado
+        catalogo = leer_catalogo_documentos()
+        info_fuente = catalogo.get(fuente)
+
+        tema = None
+        pdf_sugerido = None
+        url_descarga = None
+
+        if info_fuente:
+            tema = info_fuente.get("tema")
+            pdf_sugerido = info_fuente.get("pdf")
+
+            if pdf_sugerido:
+                descarga = obtener_documento(pdf_sugerido)
+                url_descarga = descarga["url"]
+
+        # 3. Enviar a IA con contexto
         response = client.chat.completions.create(
             model="gpt-5.4-mini",
             messages=[
                 {
                     "role": "system",
                     "content": (
-        "Eres un asistente empresarial. Responde únicamente usando el contexto proporcionado. "
-        "No agregues información externa. Si la respuesta no está en el contexto, indica: "
-        "'No encontré esa información en los documentos disponibles'. "
-        "Mantén la respuesta clara, breve y orientada a empresas."
-        )
+                        "Eres un asistente empresarial. Responde únicamente usando el contexto proporcionado. "
+                        "No agregues información externa. Si la respuesta no está en el contexto, indica: "
+                        "'No encontré esa información en los documentos disponibles'. "
+                        "Mantén la respuesta clara, breve y orientada a empresas."
+                    )
                 },
                 {
                     "role": "user",
@@ -224,7 +249,12 @@ def chat(request: ChatRequest):
         )
 
         return {
-            "respuesta": response.choices[0].message.content
+            "operacion": "chat",
+            "respuesta": response.choices[0].message.content,
+            "tema": tema,
+            "fuente_interna": fuente,
+            "documento_sugerido": pdf_sugerido,
+            "url_descarga": url_descarga
         }
 
     except Exception as e:
@@ -234,7 +264,7 @@ def chat(request: ChatRequest):
 @app.get("/documentos/{nombre_archivo}")
 def obtener_documento(nombre_archivo: str):
     account_name = os.getenv("STORAGE_ACCOUNT_NAME")
-    container_name = os.getenv("STORAGE_CONTAINER_NAME")
+    container_name = os.getenv("STORAGE_CONTAINER_DOWNLOADS")
     account_key = os.getenv("STORAGE_ACCOUNT_KEY")
 
     if not account_name or not container_name or not account_key:
