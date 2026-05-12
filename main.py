@@ -207,10 +207,26 @@ def chat(request: ChatRequest):
         contexto = ""
 
         for r in results:
-            if fuente is None:
-                fuente = r.get("title")
+            titulo = r.get("title")
 
-            contexto += r.get("content", "")[:500] + "\n\n"
+            # Ignorar archivos que no son base de conocimiento
+            if not titulo or not titulo.endswith(".txt"):
+                continue
+
+            if fuente is None:
+                fuente = titulo
+
+        contexto += r.get("content", "")[:500] + "\n\n"
+        
+        if not contexto:
+            return {
+                "operacion": "chat",
+                "respuesta": "No encontré esa información en los documentos disponibles.",
+                "tema": None,
+                "fuente_interna": None,
+                "documento_sugerido": None,
+                "url_descarga": None
+            }
 
         # 2. Leer catálogo y obtener PDF asociado
         catalogo = leer_catalogo_documentos()
