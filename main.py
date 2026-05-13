@@ -157,13 +157,13 @@ def promedio(a: float, b: float):
 @app.get("/buscar")
 def buscar_documentos(q: str):
     try:
-        results = search_client.search(search_text=q, top=5)
+        results = search_client.search(search_text=q, top=10)
 
         docs = []
         for r in results:
-            titulo = r.get("title")
+            titulo = r.get("title", "")
 
-            if not titulo or not titulo.endswith(".txt"):
+            if not titulo.endswith(".txt"):
                 continue
 
             docs.append({
@@ -171,7 +171,10 @@ def buscar_documentos(q: str):
                 "contenido": r.get("content", "")[:300]
             })
 
-        return {"query": q, "resultados": docs}
+        return {
+            "query": q,
+            "resultados": docs
+        }
 
     except Exception as e:
         logger.error(f"Error búsqueda: {str(e)}")
@@ -205,10 +208,9 @@ def leer_catalogo_documentos():
 @app.post("/chat")
 def chat(request: ChatRequest):
     try:
-        # 1. Buscar contexto en AI Search
         results = search_client.search(
             search_text=request.mensaje,
-            top=2
+            top=5
         )
 
         fuente = None
@@ -217,15 +219,14 @@ def chat(request: ChatRequest):
         for r in results:
             titulo = r.get("title")
 
-            # Ignorar archivos que no son base de conocimiento
             if not titulo or not titulo.endswith(".txt"):
                 continue
 
             if fuente is None:
                 fuente = titulo
 
-        contexto += r.get("content", "")[:500] + "\n\n"
-        
+            contexto += r.get("content", "")[:500] + "\n\n"
+
         if not contexto:
             return {
                 "operacion": "chat",
@@ -236,7 +237,6 @@ def chat(request: ChatRequest):
                 "url_descarga": None
             }
 
-        # 2. Leer catálogo y obtener PDF asociado
         catalogo = leer_catalogo_documentos()
         info_fuente = catalogo.get(fuente)
 
@@ -252,7 +252,6 @@ def chat(request: ChatRequest):
                 descarga = obtener_documento(pdf_sugerido)
                 url_descarga = descarga["url"]
 
-        # 3. Enviar a IA con contexto
         response = client.chat.completions.create(
             model="gpt-5.4-mini",
             messages=[
@@ -284,7 +283,7 @@ def chat(request: ChatRequest):
     except Exception as e:
         logger.error(f"Error en chat: {str(e)}")
         raise HTTPException(status_code=500, detail="Error en chatbot")
-    
+        
 @app.get("/documentos/{nombre_archivo}")
 def obtener_documento(nombre_archivo: str):
     account_name = os.getenv("STORAGE_ACCOUNT_NAME")
