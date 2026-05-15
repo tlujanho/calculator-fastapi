@@ -12,8 +12,6 @@ from azure.search.documents import SearchClient
 import re
 import json
 from azure.storage.blob import BlobServiceClient
-from azure.storage.queue import QueueClient
-import uuid
 
 app = FastAPI()
 
@@ -317,91 +315,4 @@ def obtener_documento(nombre_archivo: str):
 
     except Exception as e:
         logger.error(f"Error generando SAS para {nombre_archivo}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error generando enlace de descarga")
-    
-# =========================
-# 📩 MODELO REQUEST - PAGOS DE SUELDOS
-# =========================
-
-class PaymentsBatchRequest(BaseModel):
-    paymentsText: str
-
-# =========================
-# 📩 PAGOS DE SUELDOS - ENCOLAR LOTE
-# FastAPI App Service → Azure Storage Queue
-# =========================
-
-@app.post("/enqueue-payments")
-def enqueue_payments(request: PaymentsBatchRequest):
-    try:
-        connection_string = os.getenv("AZURE_STORAGE_QUEUE_CONNECTION_STRING")
-        queue_name = os.getenv("SALARY_PAYMENTS_QUEUE", "salary-payments")
-
-        if not connection_string:
-            raise HTTPException(
-                status_code=500,
-                detail="Falta configurar AZURE_STORAGE_QUEUE_CONNECTION_STRING"
-            )
-
-        queue_client = QueueClient.from_connection_string(
-            conn_str=connection_string,
-            queue_name=queue_name
-        )
-
-        queue_client.create_queue()
-
-        lines = [
-            line.strip()
-            for line in request.paymentsText.splitlines()
-            if line.strip()
-        ]
-
-        batch_id = str(uuid.uuid4())
-        sent = 0
-        invalid = []
-
-        for index, line in enumerate(lines, start=1):
-            parts = line.split(",")
-
-            if len(parts) != 2:
-                invalid.append(line)
-                continue
-
-            employee_name = parts[0].strip()
-
-            try:
-                amount = float(parts[1].strip())
-            except ValueError:
-                invalid.append(line)
-                continue
-
-            message = {
-                "batchId": batch_id,
-                "recordNumber": index,
-                "employeeName": employee_name,
-                "amount": amount,
-                "createdAt": datetime.utcnow().isoformat()
-            }
-
-            queue_client.send_message(json.dumps(message))
-            sent += 1
-
-        logger.info(
-            f"Lote {batch_id} enviado a cola {queue_name}. "
-            f"Registros enviados={sent}, inválidos={len(invalid)}"
-        )
-
-        return {
-            "mensaje": "Lote enviado a la cola",
-            "batchId": batch_id,
-            "registrosEnviados": sent,
-            "registrosInvalidos": invalid
-        }
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        logger.error(f"Error encolando pagos: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error encolando pagos")
-
+        raise HTTPException(status_code=500, detail="Error generando enlace de descarga")   
