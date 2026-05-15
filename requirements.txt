@@ -4,3 +4,4 @@ gunicorn==21.2.0
 openai>=1.30.0
 azure-storage-blob
 azure-search-documents
+azure-functions
